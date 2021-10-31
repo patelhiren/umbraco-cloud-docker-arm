@@ -1,0 +1,65 @@
+version: '3.9'
+
+services:
+  umbraco-db:
+    container_name: umbraco-db
+    image: mcr.microsoft.com/azure-sql-edge
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=Password123!
+      - MSSQL_PID=Developer
+      - MSSQL_USER=SA
+    volumes:
+      - ./umbraco-db/data:/var/opt/mssql/data
+      - ./umbraco-db/log:/var/opt/mssql/log
+      - ./umbraco-db/secrets:/var/opt/mssql/secrets
+    restart: unless-stopped
+    ports:
+      - '1433:1433'
+  umbraco-cloud:
+    container_name: umbraco-cloud
+    image:  mcr.microsoft.com/dotnet/sdk:5.0
+    depends_on:
+      - umbraco-db
+    environment:
+      - ConnectionStrings__umbracoDbDSN=server=umbraco-db;database=umbraco-cloud;user id=sa;password='Password123!'
+      - Umbraco__CMS__Unattended__InstallUnattended=true
+      - Umbraco__CMS__Unattended__UpgradeUnattended=true
+      # - Umbraco__CMS__Unattended__UnattendedUserName=hiren
+      # - Umbraco__CMS__Unattended__UnattendedUserEmail=hello@patelhiren.com
+      # - Umbraco__CMS__Unattended__UnattendedUserPassword=Password123
+      # - Umbraco__CMS__Global__UseHttps=false
+      - ASPNETCORE_HTTPS_PORT=5101
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/certs/certificate.pfx
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=password
+      - Umbraco__CMS__KeepAlive__DisableKeepAliveTask=true
+    restart: unless-stopped
+    ports:
+      - '5100:5100'
+      - '5101:5101'
+    volumes:
+      - ./umbraco-cloud:/app
+      - ./nu-get:/root/.nuget
+      - ./certs:/certs
+    working_dir: /app/src/UmbracoProject/
+    command:
+      - /bin/bash
+      - -c
+      - |
+        dotnet build -c "Release"
+        dotnet run --urls "https://+:5101;http://+:5100" --no-build -c "Release"
+
+    # command: tail -f > /dev/null
+
+  # umbraco-web:
+  #   container_name: umbraco-web
+  #   image: mcr.microsoft.com/dotnet/aspnet:5.0
+  #   depends_on:
+  #     - umbraco-db
+  #   restart: on-failure
+  #   ports:
+  #     - '8080:80'
+  #   volumes:
+  #     - ./umbraco-cloud:/app
+  #   working_dir: /app
+  #   entrypoint: ["dotnet", "MyCustomUmbracoSolution.dll"]
